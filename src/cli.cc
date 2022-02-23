@@ -220,6 +220,14 @@ void ot::print_comments(const std::list<std::string>& comments, FILE* output, bo
 		fputs("warning: Some tags contain control characters.\n", stderr);
 }
 
+/** Read multiple comments.
+ *
+ * Embedded newlines are represented by beginning the next line with a
+ * single TAB character. Since tag names should not begin with
+ * whitespace, this is a reasonable way to disambiguate from newlines
+ * which signal the end of a comment.
+ *
+ */
 std::list<std::string> ot::read_comments(FILE* input, bool raw)
 {
 	std::list<std::string> comments;
@@ -229,17 +237,62 @@ std::list<std::string> ot::read_comments(FILE* input, bool raw)
 	size_t buflen = 0;
 	ssize_t nread;
 	while ((nread = getline(&line, &buflen, input)) != -1) {
-		if (nread > 0 && line[nread - 1] == '\n')
-			--nread;
-		if (nread == 0)
+		if (nread == 0) {		// empty line continues previous tag
+			if (buflen < 2) {
+				buflen=2;
+				if (realloc(line, buflen) == nullptr) {
+					ot::status rc = {ot::st::error,
+						"Could not realloc input buffer 'line'"};
+					free(line);
+					throw rc;
+				}
+			}
+			line[0]='\t';
+			line[1]='\0';
+			nread = 1;
+		}
+
+		if (line[0] == '#')		// comment
 			continue;
-		if (line[0] == '#') // comment
-			continue;
-		if (memchr(line, '=', nread) == nullptr) {
+
+		if (line[0] == '\t') {	// continuation of previous tag
+			if (comments.empty()) {
+				ot::status rc = {ot::st::error,
+					"TAB at beginning of line continues a non-existent tag"};
+				free(line);
+				throw rc;
+			}
+			// Merge with previous tag and update 'line', 'nread', and 'buflen'.
+			std::string &line2 = comments.back();
+			line[0] = '\n';
+			line2 += line;		// concatenate previous + \n + current line.
+			nread = line2.size(); 
+			if (nread + 1 > buflen) {
+				buflen = nread + 1;
+				if (realloc(line, buflen) == nullptr) {
+					ot::status rc = {ot::st::error,
+						"Could not realloc input buffer 'line'"};
+					free(line);
+					throw rc;
+				}
+			}
+			strncpy(line, line2.c_str(), nread + 1);
+			line[nread] = '\0';
+			comments.pop_back();
+		}
+		else if (memchr(line, '=', nread) == nullptr) {
 			ot::status rc = {ot::st::error, "Malformed tag: " + std::string(line, nread)};
 			free(line);
 			throw rc;
 		}
+
+		// Remove newline at end of comment
+		if (nread > 0 && line[nread-1] == '\n') {
+			line[nread-1] = '\0';
+			--nread;
+		}
+
+		// Append the new comment to the 'comments' vector.
 		if (raw) {
 			comments.emplace_back(line, nread);
 		} else {
@@ -252,6 +305,7 @@ std::list<std::string> ot::read_comments(FILE* input, bool raw)
 		}
 	}
 	free(line);
+
 	return comments;
 }
 
