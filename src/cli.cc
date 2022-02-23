@@ -235,9 +235,11 @@ std::list<std::string> ot::read_comments(FILE* input, bool raw)
 	size_t buflen = 0;
 	ssize_t nread;
 	while ((nread = getline(&line, &buflen, input)) != -1) {
-		if (nread == 0) {		// empty line continues previous tag
-			if (buflen < 2) {
-				buflen=2;
+		fprintf(stderr, "%zd>>>%s<<<", nread, line);
+
+		if (nread == 1) {		// empty line continues previous tag
+			if (buflen < 3) {
+				buflen = 3;
 				if (realloc(line, buflen) == nullptr) {
 					ot::status rc = {ot::st::error,
 						"Could not realloc input buffer 'line'"};
@@ -246,8 +248,9 @@ std::list<std::string> ot::read_comments(FILE* input, bool raw)
 				}
 			}
 			line[0]='\t';
-			line[1]='\0';
-			nread = 1;
+			line[1]='\n';
+			line[2]='\0';
+			nread = 2;
 		}
 
 		if (line[0] == '#')		// comment
