@@ -186,29 +186,32 @@ void ot::print_comments(const std::list<std::string>& comments, FILE* output, bo
 	bool has_newline = false;
 	bool has_control = false;
 	for (const std::string& utf8_comment : comments) {
-		const std::string* comment;
+		const std::string* commentp;
 		// Convert the comment from UTF-8 to the system encoding if relevant.
 		if (raw) {
-			comment = &utf8_comment;
+			commentp = &utf8_comment;
 		} else {
 			try {
 				local = from_utf8(utf8_comment);
-				comment = &local;
+				commentp = &local;
 			} catch (ot::status& rc) {
 				rc.message += " See --raw.";
 				throw;
 			}
 		}
 
-		for (int t = 0; t < comment->length(); t++) {
-			if ((*comment)[t]  == '\n') {
+		std::string comment = *commentp;
+		for (int t = 0, c ; t < comment.length(); t++) {
+			if (comment[t]  == '\n') {
 				has_newline = true;
+				comment.insert(t+1, 1,'\t');
+				t++;
 			}
-			else if (std::iscntrl((*comment)[t])) {
+			else if (std::iscntrl(comment[t])) {
 				has_control = true;
 			}
 		}
-		fwrite(comment->data(), 1, comment->size(), output);
+		fwrite(comment.data(), 1, comment.size(), output);
 		putc('\n', output);
 	}
 	if (has_newline)
