@@ -214,8 +214,6 @@ void ot::print_comments(const std::list<std::string>& comments, FILE* output, bo
 		fwrite(comment.data(), 1, comment.size(), output);
 		putc('\n', output);
 	}
-	if (has_newline)
-		fputs("warning: Some tags contain unsupported newline characters.\n", stderr);
 	if (has_control)
 		fputs("warning: Some tags contain control characters.\n", stderr);
 }
