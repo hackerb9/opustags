@@ -15,6 +15,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <cctype>		// for std::iscntrl
 
 using namespace std::literals::string_literals;
 
@@ -171,11 +172,12 @@ ot::options ot::parse_options(int argc, char** argv, FILE* comments_input)
 }
 
 /**
- * \todo Find a way to support new lines such that they can be read back by #read_comment without
- *       ambiguity. We could add a raw mode and separate comments with a \0, or escape control
- *       characters with a backslash, but we should also preserve compatibiltity with potential
- *       callers that don’t escape backslashes. Maybe add options to select a mode between simple,
- *       raw, and escaped.
+ * Print comments in a human readable format that can be read back in by #read_comment. 
+ *
+ * To disambiguate between a newline embedded in a comment and a
+ * newline representing the start of the next tag, continuation lines
+ * always have a single TAB (^I) character added to the beginning.
+ * 
  */
 void ot::print_comments(const std::list<std::string>& comments, FILE* output, bool raw)
 {
@@ -198,11 +200,13 @@ void ot::print_comments(const std::list<std::string>& comments, FILE* output, bo
 			}
 		}
 
-		for (unsigned char c : *comment) {
-			if (c == '\n')
+		for (int t = 0; t < comment->length(); t++) {
+			if ((*comment)[t]  == '\n') {
 				has_newline = true;
-			else if (c < 0x20)
+			}
+			else if (std::iscntrl((*comment)[t])) {
 				has_control = true;
+			}
 		}
 		fwrite(comment->data(), 1, comment->size(), output);
 		putc('\n', output);
