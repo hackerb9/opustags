@@ -15,6 +15,7 @@
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
+#include <assert.h>
 #include <cctype>		// for std::iscntrl
 
 using namespace std::literals::string_literals;
@@ -172,7 +173,8 @@ ot::options ot::parse_options(int argc, char** argv, FILE* comments_input)
 }
 
 /**
- * Print comments in a human readable format that can be read back in by #read_comment. 
+ * Print comments in a human readable format that can also be read
+ * back in by #read_comment.
  *
  * To disambiguate between a newline embedded in a comment and a
  * newline representing the start of the next tag, continuation lines
@@ -200,20 +202,47 @@ void ot::print_comments(const std::list<std::string>& comments, FILE* output, bo
 			}
 		}
 
+		// Check for embedded newlines so we can insert TAB afterward
 		std::string comment = *commentp;
-		for (int t = 0, c ; t < comment.length(); t++) {
+		unsigned int newline_count = 0;
+		for (int t = 0; t < comment.length(); t++) {
 			if (comment[t]  == '\n') {
-				has_newline = true;
-				comment.insert(t+1, 1,'\t');
-				t++;
+				newline_count++;
 			}
 			else if (std::iscntrl(comment[t])) {
 				has_control = true;
 			}
 		}
-		fwrite(comment.data(), 1, comment.size(), output);
+
+		
+		// Copy byte by byte into a new string with TAB added after each newline
+		std::string tabbed_comment;
+		if (newline_count) {
+			tabbed_comment.resize(comment.length() + newline_count);
+			tabbed_comment.reserve( tabbed_comment.size() );
+		  int tabs_done = 0;
+		  for (int t = 0; t < comment.length(); t++) {
+			  tabbed_comment[t + tabs_done] = comment[t];
+			  if (comment[t] == '\n') {
+				  tabs_done++;
+				  tabbed_comment[t+tabs_done] = '\t';
+			  }
+		  }
+
+		  // Assertion: Inserted as many tabs as newlines were found.
+		  assert(newline_count == tabs_done);
+		  // Assertion: Length of new string is exactly as allocated.
+		  assert(tabbed_comment.length() == comment.length() + newline_count);
+
+		  fwrite(tabbed_comment.data(), 1, tabbed_comment.size(), output);
+		}
+		else {
+			fwrite(comment.data(), 1, comment.size(), output);
+		}
+
 		putc('\n', output);
 	}
+
 	if (has_control)
 		fputs("warning: Some tags contain control characters.\n", stderr);
 }
